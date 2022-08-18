@@ -1,0 +1,583 @@
+========================================================================================================================================================================================================
+👉️CREATE DATABASE:
+hive> CREATE DATABASE stocks_db;
+
+hive> USE stocks_db;
+
+hive> CREATE EXTERNAL TABLE IF NOT EXISTS stocks_tb (
+exch STRING,
+symbol STRING,
+ymd STRING,
+price_open FLOAT,
+price_high FLOAT,
+price_low FLOAT,
+price_close FLOAT,
+volume INT,
+price_adj_close FLOAT)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+LOCATION '/user/hirw/input/stocks';
+
+hive> SELECT * FROM stocks_tb
+LIMIT 100;
+
+
+hive> CREATE TABLE IF NOT EXISTS stocks (
+exch string,
+symbol string,
+ymd string,
+price_open float,
+price_high float,
+price_low float,
+price_close float,
+volume int,
+price_adj_close float)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
+
+=======================================================================================================================================================================================================
+👉️DESCRIBE & DROP TABLE
+hive> DESCRIBE FORMATTED stocks;
+
+hive> DROP DATABASE stocks_db;
+
+hive> DROP TABLE stocks;
+
+hive> DROP DATABASE stocks_db CASCADE;
+
+=======================================================================================================================================================================================================
+👉️LOADING DATA INTO HIVE TABLES
+#################################CREATE TABLE WITH PROPERTIES################################################################################
+hive> CREATE TABLE IF NOT EXISTS stocks (
+exch STRING,
+symbol STRING,
+ymd STRING,
+price_open FLOAT,
+price_high FLOAT,
+price_low FLOAT,
+price_close FLOAT,
+volume INT,
+price_adj_close FLOAT)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+TBLPROPERTIES ('creator'='hirw', 'created_on' = '2015-02-16', 'description'='This table holds stocks data!!!');
+
+LOAD DATA INPATH '/input/stocks.txt'INTO TABLE stocks;
+
+
+################################################################################3######### LOAD DATASET USING CTAS ####################################################################################
+
+hive> CREATE TABLE stocks_ctas AS SELECT * FROM stocks;
+
+##################################################################################### LOAD DATASET USING INSERT..SELECT ###############################################################################
+
+hive> INSERT INTO TABLE stocks_ctas SELECT s.* FROM stocks s;
+
+###################################################################################### LOAD DATASET USING INSERT OVERWRITE ############################################################################
+
+hive> INSERT OVERWRITE TABLE stocks_ctas SELECT s.* FROM stocks s;
+
+################################################################################ LOCATION ATTRIBUTE & LOADING DATA ### ################################################################################
+
+hive> CREATE TABLE IF NOT EXISTS stocks_loc (
+exch STRING,
+symbol STRING,
+ymd STRING,
+price_open FLOAT,
+price_high FLOAT,
+price_low FLOAT,
+price_close FLOAT,
+volume INT,
+price_adj_close FLOAT)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+LOCATION '/input/stocks.txt'
+TBLPROPERTIES ('creator'='hirw', 'created_on' = '2015-02-16', 'description'='This table holds stocks data!!!');
+
+###########################################################################################  LOAD TABLE FROM LOCAL DATA  ##############################################################################
+
+load data local inpath '/home/aritra/Desktop/files/StudentData.csv' overwrite into table studentData;
+
+=======================================================================================================================================================================================================
+👉️MANAGE TABLE AND EXTERNAL TABLE
+
+#######################################################################################  CREATE MANAGE TABLE ##########################################################################################
+
+create table studentData(
+age int,
+gender string,
+name string,
+course string,
+roll int,
+marks int,
+email string)
+row format delimited
+fields terminated by ','
+TBLPROPERTIES ("skip.header.line.count"="1"); // avoid first row
+
+################################################################################  CREATE EXTERNAL TABLE  ##############################################################################################
+
+create external table studentData(
+age int,
+gender string,
+name string,
+course string,
+roll int,
+marks int,
+email string)
+row format delimited
+fields terminated by ','
+TBLPROPERTIES ("skip.header.line.count"="1");
+
+LOAD DATA INPATH 'input/studentdata.csv' INTO TABLE studentData;
+
+👇️Data move to this location
+!hdfs dfs -ls /user/hive/warehouse/practice.db/studentdata;
+
+##########################################################################  LOAD EXTERNAL TABLE LOCATION ATTRIBUTE ####################################################################################
+
+hive> CREATE EXTERNAL TABLE IF NOT EXISTS stocks_loc (
+exch STRING,
+symbol STRING,
+ymd STRING,
+price_open FLOAT,
+price_high FLOAT,
+price_low FLOAT,
+price_close FLOAT,
+volume INT,
+price_adj_close FLOAT)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+LOCATION '/input/stocks.txt'
+TBLPROPERTIES ('creator'='hirw', 'created_on' = '2015-02-16', 'description'='This table holds stocks data!!!');
+
+=======================================================================================================================================================================================================
+👉️PARTITIONS
+
+############################################################################### PARTITON TABLE ON SYMBOL COLUMN #######################################################################################
+--Table with one partition column - sym
+
+hive> CREATE TABLE IF NOT EXISTS stocks_partition (
+exch STRING,
+symbol STRING,
+ymd STRING,
+price_open FLOAT,
+price_high FLOAT,
+price_low FLOAT,
+price_close FLOAT,
+volume INT,
+price_adj_close FLOAT)
+PARTITIONED BY (sym STRING)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
+
+hive> DESCRIBE FORMATTED stocks_partition;
+
+
+create table stat_part(
+age int,
+gender string,
+name string,
+roll int,
+marks string,
+email string
+)partitioned by (course string);
+
+########################################################################### LOADING PARTITIONS USING INSERT...SELECT ##################################################################################
+--Add and load a partition using INSERT
+
+hive> insert into table stat_part partition(course = 'DB') select age,gender,name,roll, marks,email from studentData where course = 'DB';
+
+hive> INSERT OVERWRITE TABLE stocks_partition
+PARTITION (sym = 'B7J')
+SELECT * FROM stocks s
+WHERE s.symbol = 'B7J';
+
+hive> INSERT OVERWRITE TABLE stocks_partition
+PARTITION (sym = 'BB3')
+SELECT * FROM stocks s
+WHERE s.symbol = 'BB3';
+
+##################################################################################### DETAILS ABOUT PARTITON ##########################################################################################
+--To see the list of partitions in a table
+
+hive> SHOW PARTITIONS stocks_partition;
+
+hive> DESCRIBE FORMATTED stocks_partition;
+
+hive> !hadoop fs -ls /user/hive/warehouse/stocks_db.db/stocks_partition;
+
+
+########################################################################  SELECT with partition column in the where clause  ###########################################################################
+
+hive> SELECT * FROM stocks_partition
+WHERE sym='B7J';
+
+--Extract only CBZ records in to a directory
+hive> INSERT OVERWRITE DIRECTORY 'output/hive/stocks-zuu'
+SELECT *
+FROM stocks WHERE symbol='ZUU';
+
+############################################################################### ADD PARTITION USING LOCATION ##########################################################################################
+
+--Add a partition using a location
+
+hive> ALTER TABLE stocks_partition ADD IF NOT EXISTS
+PARTITION (sym = 'ZUU') LOCATION 'output/hive/stocks-zuu';
+
+hive> !hadoop fs -ls /user/hive/warehouse/stocks_db.db/stocks_partition;
+
+hive> SHOW PARTITIONS stocks_partition;
+
+hive> !hadoop fs -ls /user/hive/warehouse/stocks_db.db/stocks_partition;
+
+####################################################################### CREATE MULTIPLE PARTITIONS USING INSERT #######################################################################################
+
+--Multiple partitions using single insert
+
+hive> FROM stocks s
+INSERT OVERWRITE TABLE stocks_partition
+PARTITION (sym = 'GEL')
+SELECT * WHERE s.symbol = 'GEL'
+INSERT OVERWRITE TABLE stocks_partition
+PARTITION (sym = 'GEK')
+SELECT * WHERE s.symbol = 'GEK';
+
+hive> SHOW PARTITIONS stocks_partition;
+
+################################################################################### DROPPING A PARTITION ##############################################################################################
+
+hive> ALTER TABLE stocks_partition DROP IF EXISTS PARTITION(sym = 'GEL');
+
+hive> SHOW PARTITIONS stocks_partition;
+
+########################################################################## INCORRECT PARTITION ASSIGNMENT #############################################################################################
+
+hive> INSERT OVERWRITE TABLE stocks_partition
+PARTITION (sym = 'APPL')
+SELECT * FROM stocks s
+WHERE s.symbol = 'MSFT';
+
+########################################################################### ENABLE DYNAMIC PARTITION ##################################################################################################
+
+hive> SET hive.exec.dynamic.partition=true;
+
+hive> INSERT OVERWRITE TABLE stocks_partition
+PARTITION (sym)
+SELECT s.*, s.symbol
+FROM stocks s;
+
+create table dyna_part(
+age int,
+gender string,
+name string,
+roll int,
+marks string,
+email string
+)partitioned by (course string);
+
+create table std_dyna(
+age int,
+gender string,
+name string,
+course string,
+roll int,
+marks string,
+email string
+)partitioned by (course_p string, ag int)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t';
+########################################################## Setting dynamic partition mode to nonstrict. Property is strict by default #################################################################
+hive> SET hive.exec.dynamic.partition.mode=nonstrict;
+
+insert into table dyna_part partition(course) select age,gender,name,roll, marks,email,course from studentData where course = 'DB';
+insert into table dyna_part partition(course) select age,gender,name,roll, marks,email,course from studentData;
+####################################################################### CREATE TABLE WITH MORE THAN ONE PARTITION COLUMNS #############################################################################
+
+--Table with 3 partition columns - exch_name, yr, sym
+hive> CREATE TABLE IF NOT EXISTS stocks_dynamic_partition (
+exch STRING,
+symbol STRING,
+ymd STRING,
+price_open FLOAT,
+price_high FLOAT,
+price_low FLOAT,
+price_close FLOAT,
+volume INT,
+price_adj_close FLOAT)
+PARTITIONED BY (exch_name STRING, yr STRING, sym STRING)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
+
+hive> DESCRIBE FORMATTED stocks_dynamic_partition;
+
+############################################################################## DYNAMIC PARTITION INSERTS ##############################################################################################
+
+hive> INSERT OVERWRITE TABLE stocks_dynamic_partition
+PARTITION (exch_name='ABCSE', yr, sym)
+SELECT *, year(ymd), symbol
+FROM stocks;
+
+hive> INSERT OVERWRITE TABLE stocks_dynamic_partition
+PARTITION (exch_name='ABCSE', yr, sym)
+SELECT *, year(ymd), symbol
+FROM stocks WHERE year(ymd) IN ('2001', '2002', '2003') and symbol like 'B%';
+
+insert into table std_dyna
+partition (course_p ,ag)
+select * , course as course_p, age as ag from studentdata;
+
+
+--Set the number of partitions per node. 
+hive> SET hive.exec.max.dynamic.partitions=1000;
+hive> SET hive.exec.max.dynamic.partitions.pernode=500;
+
+hive> SHOW PARTITIONS stocks_dynamic_partition;
+
+########################################################################## TRAVERSE PARTITIONS IN HDFS ################################################################################################
+
+hive> !hadoop fs -ls /user/hive/warehouse/stocks_db.db/stocks_dynamic_partition;
+
+hive> !hadoop fs -ls /user/hive/warehouse/stocks_db.db/stocks_dynamic_partition/exch_name=ABCSE;
+
+hive> !hadoop fs -ls /user/hive/warehouse/stocks_db.db/stocks_dynamic_partition/exch_name=ABCSE/yr=2003;
+
+hive> !hadoop fs -ls /user/hive/warehouse/stocks_db.db/stocks_dynamic_partition/exch_name=ABCSE/yr=2003/sym=GEL;
+
+hive> !hadoop fs -cat /user/hive/warehouse/stocks_db.db/stocks_dynamic_partition/exch_name=ABCSE/yr=2003/sym=GEL/000000_0;
+
+######################################################################### SELECTING TARGETTED PARTIITONS ##############################################################################################
+
+hive> SELECT * FROM stocks_dynamic_partition 
+WHERE yr=2003 and volume > 10000;
+
+hive> SELECT * FROM stocks_dynamic_partition
+WHERE yr=2003 and sym='GEL'  and volume > 10000;
+
+--Property to control Hive's mode
+hive> SET hive.mapred.mode=strict;
+
+hive> SELECT * FROM stocks_dynamic_partition
+WHERE volume > 10000;
+
+hive> SELECT * FROM stocks_dynamic_partition
+WHERE exch_name = 'ABCSE' and volume > 10000;
+
+========================================================================================================================================================================================================
+👉️Bucketing
+set hive.exec.dynamic.partition=true;
+set hive.exec.dynamic.partition.mode=nonstrict;
+set hive.enforce.bucketing=true;
+
+create table std_bucket(
+age int,
+gender string,
+name string,
+course string,
+roll int,
+marks string,
+email string
+)clustered by (age) into 2 buckets stored as textfile;
+
+insert into std_bucket select * from studentData;
+
+############################################################################## CREATE TABLE WITH 5 BUCKETS ############################################################################################
+
+hive> CREATE TABLE IF NOT EXISTS stocks_bucket (
+exch STRING,
+symbol STRING,
+ymd STRING,
+price_open FLOAT,
+price_high FLOAT,
+price_low FLOAT,
+price_close FLOAT,
+volume INT,
+price_adj_close FLOAT)
+PARTITIONED BY (exch_name STRING, yr STRING)
+CLUSTERED BY (symbol) INTO 5 BUCKETS
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
+
+--Set number of partitions per node
+hive> SET hive.exec.max.dynamic.partitions=15000;
+hive> SET hive.exec.max.dynamic.partitions.pernode=15000;
+
+################################################################################## ENFORCE BUCKETING ##################################################################################################
+
+hive> SET hive.enforce.bucketing = true;
+
+###################################################################### INSERTING INTO A BUCKETTED TABLE ###############################################################################################
+
+--This insert will create partitions (exch_name, yr) & buckets (symbol)
+hive> INSERT OVERWRITE TABLE stocks_bucket
+PARTITION (exch_name='ABCSE', yr)
+SELECT *, year(data)
+FROM stocks WHERE year(data) IN ('2001', '2002', '2003') and symbol like 'B%';
+
+################################################################################### TABLE SAMPLING ####################################################################################################
+
+--Table sampling with out buckets
+hive> SELECT *
+FROM stocks TABLESAMPLE(BUCKET 3 OUT OF 5 ON symbol) s;
+
+--Table sampling with buckets
+hive> SELECT *
+FROM stocks_bucket TABLESAMPLE(BUCKET 3 OUT OF 5 ON symbol) s;
+
+=======================================================================================================================================================================================================
+👉️ STANDARD SELECTS 
+
+hive> SELECT * FROM stocks
+WHERE symbol = 'GEL';
+
+hive> SELECT * FROM stocks
+WHERE symbol IN ('GEL', 'B3B');
+
+hive> SELECT * FROM stocks
+WHERE exch LIKE 'ABC%' and symbol RLIKE 'B.B';
+
+####################################################################################### SELECT WITH CASE STATEMENT ####################################################################################
+
+hive> SELECT symbol, price_open, price_close, volume,
+CASE
+ WHEN volume < 20000 THEN 'low'
+ WHEN volume >= 20000 AND volume < 40000 THEN 'middle'
+ WHEN volume >= 40000 AND volume < 60000 THEN 'high'
+ ELSE 'very high'
+END 
+AS volume_level 
+FROM stocks
+WHERE symbol = 'GEL';
+
+########################################################################################### DISTINCT & LIMIT ##########################################################################################
+
+hive> SELECT DISTINCT exch, symbol FROM stocks;
+
+hive> SELECT * FROM stocks
+LIMIT 10;
+
+############################################################################################## GROUP BY ###############################################################################################
+
+hive> SELECT year(ymd), symbol, avg(volume) FROM stocks
+GROUP BY year(ymd), symbol;
+
+######################################################################################## GROUP BY & HAVING ############################################################################################
+
+hive> SELECT year(ymd), symbol, avg(volume) FROM stocks
+GROUP BY year(ymd), symbol
+HAVING avg(volume) > 400000;
+
+hive> INSERT OVERWRITE LOCAL DIRECTORY '/home/hirw/output/hive/stocks'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' 
+SELECT year(ymd), symbol, avg(volume) FROM stocks
+GROUP BY year(ymd), symbol
+HAVING avg(volume) > 400000;
+
+hive> INSERT OVERWRITE LOCAL DIRECTORY '/home/hirw/output/hive/stocks'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' 
+STORED AS ORC
+SELECT year(ymd), symbol, avg(volume) FROM stocks
+GROUP BY year(ymd), symbol
+HAVING avg(volume) > 400000;
+
+=======================================================================================================================================================================================================
+👉️ JOINS
+######################################################################## CREATING DIVIDENDS DATASET ###################################################################################################
+
+hive> CREATE EXTERNAL TABLE IF NOT EXISTS dividends (
+exch STRING,
+symbol STRING,
+ymd STRING,
+dividend FLOAT
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
+LOCATION '/data/dividends.txt';
+
+hive> SELECT * FROM dividends
+LIMIT 100;
+
+############################################################################ INNER JOIN ###############################################################################################################
+
+hive> SELECT s.exch, s.symbol, s.ymd, s.price_close, d.dividend
+FROM stocks s INNER JOIN dividends d 
+ON s.symbol = d.symbol AND s.ymd = d.ymd;
+
+############################################################################ LEFT OUTER JOIN ##########################################################################################################
+
+hive> SELECT s.exch, s.symbol, s.ymd, s.price_close, d.dividend
+FROM stocks s LEFT OUTER JOIN dividends d 
+ON s.symbol = d.symbol AND s.ymd = d.ymd;
+
+hive> SELECT s.exch, s.symbol, s.ymd, s.price_close, d.dividend
+FROM stocks s LEFT OUTER JOIN dividends d 
+ON s.symbol = d.symbol AND s.ymd = d.ymd
+WHERE d.dividend IS NOT NULL;
+
+############################################################################## RIGHT OUTER JOIN #######################################################################################################
+
+hive> SELECT s.exch, s.symbol, s.ymd, s.price_close, d.dividend
+FROM stocks s RIGHT OUTER JOIN dividends d 
+ON s.symbol = d.symbol AND s.ymd = d.ymd;
+
+############################################################################### FULL OUTER JOIN #######################################################################################################
+
+hive> SELECT s.exch, s.symbol, s.ymd, s.price_close, d.dividend
+FROM stocks s FULL OUTER JOIN dividends d 
+ON s.symbol = d.symbol AND s.ymd = d.ymd;
+
+############################################################################### LEFT SEMI JOIN ########################################################################################################
+
+--Implements IN/EXISTS. As of  As of Hive 0.13 the IN/NOT IN/EXISTS/NOT EXISTS operators are supported using subqueries so most of these JOINs don't have to be performed manually anymore.
+hive> SELECT s.ymd, s.symbol, s.price_close
+FROM stocks s LEFT SEMI JOIN dividends d 
+ON s.ymd = d.ymd AND s.symbol = d.symbol;
+
+############################################################################### INEQUALITY JOIN #######################################################################################################
+
+--Join with inequality condition
+hive> SELECT s.ymd, s.symbol, s.price_close
+FROM stocks s LEFT SEMI JOIN dividends d 
+ON s.ymd > d.ymd;
+
+--CROSS JOIN (for inequality joins)
+hive> SELECT s.ymd, s.symbol, s.price_close
+FROM stocks s CROSS JOIN dividends d 
+WHERE s.ymd > d.ymd;
+
+###################################################################### MUTLITABLE JOINS & NUMBER OF MR JOBS ###########################################################################################
+
+--Same key. Only one MR job
+SELECT a.val, b.val, c.val FROM a JOIN b ON (a.key = b.key1) JOIN c ON (c.key = b.key1)
+
+--2 MR Job. The first map/reduce job joins a with b and the results are then joined with c in the second map/reduce job.
+SELECT a.val, b.val, c.val FROM a JOIN b ON (a.key = b.key1) JOIN c ON (c.key = b.key2)
+
+=======================================================================================================================================================================================================
+👉️ Ordering Data
+
+hive> SELECT * FROM stocks
+ORDER BY price_close DESC;
+
+hive> SET mapreduce.job.reduces=3;
+
+hive> SELECT * FROM stocks
+ORDER BY price_close DESC;
+
+hive> SELECT ymd, symbol, price_close
+FROM stocks WHERE year(ymd) = '2003'
+SORT BY symbol ASC, price_close DESC;
+
+hive> INSERT OVERWRITE LOCAL DIRECTORY '/home/hirw/output/hive/stocks'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' 
+SELECT ymd, symbol, price_close
+FROM stocks WHERE year(ymd) = '2003'
+SORT BY symbol ASC, price_close DESC;
+
+hive> INSERT OVERWRITE LOCAL DIRECTORY '/home/hirw/output/hive/stocks'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' 
+SELECT ymd, symbol, price_close
+FROM stocks WHERE year(ymd) = '2003'
+DISTRIBUTE BY symbol
+SORT BY symbol ASC, price_close DESC;
+
+hive> SELECT ymd, symbol, price_close
+FROM stocks
+DISTRIBUTE BY symbol
+SORT BY symbol ASC;
+
+hive> INSERT OVERWRITE LOCAL DIRECTORY '/home/hirw/output/hive/stocks'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' 
+SELECT ymd, symbol, price_close
+FROM stocks
+CLUSTER BY symbol;
